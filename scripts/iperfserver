@@ -1,0 +1,18 @@
+#!/bin/sh
+
+function errors () {
+	/bin/echo
+}
+
+function trapexit () {
+	errors
+	trap "" 0  
+	exit 0
+}
+
+trap trapexit 0 1 2 3 15
+
+set -x
+
+while sleep 1; do iperf -s -f M -i 4 | sed -n -e '/ID/d' -e '/^\[/p'; done
+

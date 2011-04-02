@@ -1,0 +1,115 @@
+#!/bin/bash
+
+#ADDR=192.168.1.254
+#ADDR=192.168.1.20
+#ADDR=169.254.142.1
+#ADDR=`cat /proc/network_ip`
+DEFAULT=169.254.1.1
+
+ADDR=${1:-${DEFAULT}}
+START=${2:-16}
+STOP=${3:-1500}
+COUNT=${4:-20}
+
+function errors () {
+	/bin/echo
+	/bin/echo "ERRORS: $ERROR"
+	/bin/echo
+}
+
+function trapexit () {
+	errors
+	trap "" 0  
+	exit 0
+}
+
+trap trapexit 0 1 2 3 15
+
+/bin/echo 
+
+case $OSTYPE in
+
+
+cygwin)
+	/bin/echo CYGWIN
+	pingcmd () {
+		ping -f $1 $2 $3
+	}
+        ;;
+
+linux-gnu)
+	/bin/echo LINUX
+	pingcmd () {
+		ping -f -s $2 -c $3 $1
+	}
+        ;;
+*)
+	/bin/echo UNKNOWN OS
+	pingcmd () {
+		ping -f -s $2 -c $3 $1
+	}
+        ;;
+esac
+
+
+while sleep 0
+do
+        DATE=$(date)
+
+
+        #PING=$(ping -f -c ${COUNT} -s $START $ADDR 2>/dev/null)
+        PING=$(pingcmd $ADDR $START $COUNT 2>/dev/null)
+
+        RESULTS=$(/bin/echo $PING |
+                sed -n \
+                        -e 's/.*---.*---//' \
+                        -e 's/ packets//g' \
+                        -e 's/ transmitted/:Tx/g' \
+                        -e 's/ received/:Rx/g' \
+                        -e 's/ packet//g' \
+                        -e 's/ loss/ loss,/' \
+                        -e 's/ min.*stddev =//g' \
+                        -e 's/ round.*trip//' \
+                        -e 's/ variance.*//' \
+                        -e p \
+                )
+
+        TX=$(/bin/echo $PING |
+                sed -n \
+                        -e 's/.*---.*--- //' \
+                        -e 's/ packets transmitted.*//' \
+                        -e p \
+                )
+
+        RX=$(/bin/echo $PING |
+                sed -n \
+                        -e 's/^.*transmitted, //' \
+                        -e 's/ .*received.*//' \
+                        -e p \
+                )
+
+        if [ "$TX" = "$RX" ] ; then
+                /bin/echo -en "$START - $RESULTS \n"
+                START=$(($START + 1))
+                [ "${START}" -eq "${STOP}" ] && break
+        else
+                ERROR="$ERROR $START"
+                ERRORS="$ERRORS\n$DATE $START"
+                /bin/echo -en "\nERROR: $DATE $ERROR\n$START - $RESULTS \n"
+        fi
+#set +x
+        
+	#echo "$START - " `ping -f -c ${SIZE} -s $START $ADDR 2>/dev/null | \
+	#	sed -n -e 's/ \(.%\)/ 0\1/' \
+	#		-e 's/packets transmitted, //' \
+	#		-e 's/packets received, / - /' \
+	#		-e 's/packet loss/ - /' \
+	#		-e 's/round-trip .* = /\ \ /' \
+	#		-e 3p -e 4p || echo FAILED $START`
+	#START=$(($START + 1))
+	#[ "${START}" -eq "${STOP}" ] && exit 0
+
+done
+
+exit -1
+
